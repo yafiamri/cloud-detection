@@ -1,1 +1,106 @@
-{"nbformat":4,"nbformat_minor":0,"metadata":{"colab":{"provenance":[],"authorship_tag":"ABX9TyPxgf2Z8mmN3qupq/XDOpk9"},"kernelspec":{"name":"python3","display_name":"Python 3"},"language_info":{"name":"python"}},"cells":[{"cell_type":"code","execution_count":null,"metadata":{"id":"qnH4pI00JMPk"},"outputs":[],"source":["# Simpan sebagai app.py\n","import streamlit as st\n","import torch\n","import numpy as np\n","import cv2\n","import matplotlib.pyplot as plt\n","from PIL import Image\n","from ultralytics import YOLO\n","from arsitektur_clouddeeplabv3 import CloudDeepLabV3Plus\n","import albumentations as A\n","from albumentations.pytorch import ToTensorV2\n","\n","# ========== Konfigurasi ==========\n","CLASS_LABELS = ['cumulus', 'altocumulus', 'cirrus', 'clearsky', 'stratocumulus', 'cumulonimbus', 'mixed']\n","device = torch.device(\"cuda\" if torch.cuda.is_available() else \"cpu\")\n","\n","# ========== Load Model ==========\n","@st.cache_resource\n","def load_models():\n","    seg_model = CloudDeepLabV3Plus().to(device)\n","    seg_model.load_state_dict(torch.load(\"model/clouddeeplabv3_best.pth\", map_location=device))\n","    seg_model.eval()\n","\n","    cls_model = YOLO(\"model/yolov8_cls_best.pt\")\n","    return seg_model, cls_model\n","\n","# ========== Transformasi ==========\n","val_transform = A.Compose([\n","    A.Resize(512, 512),\n","    A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),\n","    ToTensorV2()\n","])\n","\n","# ========== Segmentasi Awan ==========\n","def predict_segmentation(img_pil, model):\n","    image = np.array(img_pil)\n","    transformed = val_transform(image=image)\n","    img_tensor = transformed[\"image\"].unsqueeze(0).to(device)\n","\n","    with torch.no_grad():\n","        output = model(img_tensor)[\"out\"]\n","        mask = (torch.sigmoid(output) > 0.5).squeeze().cpu().numpy()\n","\n","    coverage = 100 * np.count_nonzero(mask) / mask.size\n","    return mask, coverage\n","\n","# ========== Klasifikasi Awan ==========\n","def predict_classification(img_path, model):\n","    result = model.predict(img_path, verbose=False)[0]\n","    pred_idx = result.probs.top1\n","    conf = result.probs.data[pred_idx].item()\n","    return CLASS_LABELS[pred_idx], conf\n","\n","# ========== Interpretasi Cuaca ==========\n","def interpretasi_cuaca(coverage):\n","    if coverage < 10:\n","        return \"Clear\"\n","    elif coverage < 30:\n","        return \"Mostly Clear\"\n","    elif coverage < 70:\n","        return \"Partly Cloudy\"\n","    elif coverage < 90:\n","        return \"Mostly Cloudy\"\n","    else:\n","        return \"Overcast\"\n","\n","# ========== STREAMLIT APP ==========\n","st.set_page_config(page_title=\"Deteksi Awan\", layout=\"wide\")\n","st.title(\"☁️ Sistem Deteksi dan Klasifikasi Awan\")\n","\n","seg_model, cls_model = load_models()\n","\n","uploaded_file = st.file_uploader(\"Unggah gambar langit\", type=[\"jpg\", \"png\", \"jpeg\"])\n","if uploaded_file:\n","    img_pil = Image.open(uploaded_file).convert(\"RGB\")\n","    img_path = f\"temp.jpg\"\n","    img_pil.save(img_path)\n","\n","    mask, coverage = predict_segmentation(img_pil, seg_model)\n","    label, conf = predict_classification(img_path, cls_model)\n","    cuaca = interpretasi_cuaca(coverage)\n","\n","    # Visualisasi\n","    col1, col2, col3 = st.columns(3)\n","    col1.image(img_pil, caption=\"Gambar Asli\", use_column_width=True)\n","    col2.image(mask, caption=f\"Mask Awan\\nTutupan: {coverage:.1f}%\", use_column_width=True)\n","    col3.markdown(f\"### 🌤️ Klasifikasi: **{label}**\")\n","    col3.markdown(f\"**Confidence:** {conf:.1%}\")\n","    col3.markdown(f\"**Kategori Cuaca:** {cuaca}\")"]}]}
+import streamlit as st
+import gdown
+import torch
+import os
+from arsitektur_clouddeeplabv3 import CloudDeepLabV3Plus  # pastikan file ini sudah ada di GitHub repo
+
+from ultralytics import YOLO
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Fungsi untuk download dan cache CloudDeepLabV3+
+@st.cache_resource
+def load_segmentation_model():
+    file_id = "1-Uq6zEB-j9xzM5kGAYA9gy2EJ6BYRi87"
+    url = f"https://drive.google.com/uc?export=download&id={file_id}"
+    output = "clouddeeplabv3.pth"
+
+    if not os.path.exists(output):
+        gdown.download(url, output, quiet=False)
+
+    model = CloudDeepLabV3Plus()
+    model.load_state_dict(torch.load(output, map_location="cpu"))
+    model.eval()
+    return model
+
+# Fungsi untuk download dan cache YOLOv8
+@st.cache_resource
+def load_classification_model():
+    file_id = "11-10CnQQZE0MK_40I_BnWIyPUSScZmEu"
+    url = f"https://drive.google.com/uc?export=download&id={file_id}"
+    output = "yolov8_cls.pt"
+
+    if not os.path.exists(output):
+        gdown.download(url, output, quiet=False)
+
+    model = YOLO(output)
+    return model
+
+# Load models
+seg_model = load_segmentation_model()
+cls_model = load_classification_model()
+
+# Mapping nama kelas
+class_names = [
+    "cumulus", "altocumulus", "cirrus", "clearsky",
+    "stratocumulus", "cumulonimbus", "mixed"
+]
+
+# Streamlit UI
+st.title("🌤️ Cloud Detection App")
+
+uploaded_file = st.file_uploader("Upload Gambar Langit", type=["jpg", "jpeg", "png"])
+
+if uploaded_file:
+    # Simpan gambar upload
+    image_bytes = uploaded_file.read()
+    nparr = np.frombuffer(image_bytes, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    # Resize + Padding gambar ke 512x512 (seg_model input)
+    input_seg = cv2.resize(img_rgb, (512, 512))
+    input_seg = input_seg.transpose(2, 0, 1) / 255.0
+    input_seg = torch.from_numpy(input_seg).float().unsqueeze(0)
+
+    # Prediksi segmentasi
+    with torch.no_grad():
+        output = seg_model(input_seg)["out"].squeeze(0).squeeze(0).numpy()
+
+    mask = (output > 0.5).astype(np.uint8)
+
+    # Hitung tutupan awan
+    coverage = (mask.sum() / mask.size) * 100
+
+    # Prediksi klasifikasi
+    temp_path = "temp_uploaded_img.jpg"
+    cv2.imwrite(temp_path, img)
+    result = cls_model.predict(temp_path, verbose=False)[0]
+    pred_idx = result.probs.top1
+    pred_conf = result.probs.data[pred_idx].item()
+    pred_label = class_names[pred_idx]
+
+    # Interpretasi tutupan
+    if coverage <= 10:
+        sky_condition = "Clear"
+    elif coverage <= 30:
+        sky_condition = "Mostly Clear"
+    elif coverage <= 70:
+        sky_condition = "Partly Cloudy"
+    elif coverage <= 90:
+        sky_condition = "Mostly Cloudy"
+    else:
+        sky_condition = "Cloudy"
+
+    # Tampilkan hasil
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.image(img_rgb, caption="Gambar Asli")
+
+    with col2:
+        st.image(mask * 255, caption=f"Tutupan Awan: {coverage:.1f}%")
+
+    with col3:
+        st.image(img_rgb, caption=f"Awan: {pred_label} ({pred_conf*100:.1f}%)\nCuaca: {sky_condition}")
