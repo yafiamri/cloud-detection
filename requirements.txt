@@ -3,7 +3,7 @@ torch
 torchvision
 gdown
 ultralytics
-opencv-python-headless
+opencv-python
 numpy
 matplotlib
 timm
