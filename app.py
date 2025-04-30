@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 # Fungsi untuk download dan cache CloudDeepLabV3+
 @st.cache_resource
 def load_segmentation_model():
-    file_id = "1-Uq6zEB-j9xzM5kGAYA9gy2EJ6BYRi87"
+    file_id = "14uQx6dGlV8iCJdQqhWZ6KczfQa7XuaEA"
     url = f"https://drive.google.com/uc?export=download&id={file_id}"
     output = "clouddeeplabv3.pth"
 
