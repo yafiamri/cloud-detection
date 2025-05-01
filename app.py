@@ -91,13 +91,10 @@ if process and uploaded_files:
             if "Poligon" in roi_method:
                 draw_mode = "polygon"
 
-            bg_path = f"canvas_bg_{filename}.png"
-            img_pil.save(bg_path)
-
             canvas_result = st_canvas(
                 fill_color="rgba(255, 255, 0, 0.3)",
                 stroke_color="#FFFF00",
-                background_image=bg_path,  # string path, bukan image object
+                background_image=img_pil,
                 drawing_mode=draw_mode,
                 height=512,
                 width=512,
@@ -105,7 +102,7 @@ if process and uploaded_files:
                 key=f"canvas_{filename}"
             )
 
-            if canvas_result.json_data:
+            if canvas_result.json_data and "objects" in canvas_result.json_data:
                 for obj in canvas_result.json_data["objects"]:
                     if obj["type"] == "circle":
                         x = int(obj["left"] + obj["radius"])
