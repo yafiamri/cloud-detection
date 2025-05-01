@@ -91,10 +91,16 @@ if process and uploaded_files:
             if "Poligon" in roi_method:
                 draw_mode = "polygon"
 
+            if isinstance(img_pil, Image.Image):
+                img_rgba = img_pil.convert("RGBA")
+            else:
+                st.error("Gagal memuat gambar latar untuk ROI.")
+                continue
+
             canvas_result = st_canvas(
                 fill_color="rgba(255, 255, 0, 0.3)",
                 stroke_color="#FFFF00",
-                background_image=img_pil,
+                background_image=img_rgba,
                 drawing_mode=draw_mode,
                 height=512,
                 width=512,
