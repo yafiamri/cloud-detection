@@ -98,9 +98,6 @@ if process and uploaded_files:
                 img_rgba.save(buffer, format="PNG")
                 buffer.seek(0)
                 img_for_canvas = Image.open(buffer)
-            except Exception as e:
-                st.error(f"Gagal memuat gambar latar ROI: {e}")
-                continue
                 
                 canvas_result = st_canvas(
                     fill_color="rgba(255, 255, 0, 0.3)",
@@ -112,6 +109,10 @@ if process and uploaded_files:
                     update_streamlit=True,
                     key=f"canvas_{filename}"
                 )
+            
+            except Exception as e:
+                st.error(f"Gagal menampilkan canvas untuk ROI manual: {e}")
+                continue
 
             if canvas_result.json_data and "objects" in canvas_result.json_data:
                 for obj in canvas_result.json_data["objects"]:
