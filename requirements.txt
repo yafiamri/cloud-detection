@@ -1,5 +1,6 @@
-streamlit
-streamlit-drawable-canvas
+streamlit==1.25.0
+streamlit-drawable-canvas==0.8.0
+Pillow>=9.5
 torch
 torchvision
 gdown
