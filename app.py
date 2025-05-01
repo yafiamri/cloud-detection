@@ -11,6 +11,7 @@ from streamlit_drawable_canvas import st_canvas
 from ultralytics import YOLO
 from arsitektur_clouddeeplabv3 import CloudDeepLabV3Plus
 import json
+import io
 
 @st.cache_resource
 def load_segmentation_model():
@@ -91,22 +92,26 @@ if process and uploaded_files:
             if "Poligon" in roi_method:
                 draw_mode = "polygon"
 
-            if isinstance(img_pil, Image.Image):
+            try:
                 img_rgba = img_pil.convert("RGBA")
-            else:
-                st.error("Gagal memuat gambar latar untuk ROI.")
+                buffer = io.BytesIO()
+                img_rgba.save(buffer, format="PNG")
+                buffer.seek(0)
+                img_for_canvas = Image.open(buffer)
+            except Exception as e:
+                st.error(f"Gagal memuat gambar latar ROI: {e}")
                 continue
-
-            canvas_result = st_canvas(
-                fill_color="rgba(255, 255, 0, 0.3)",
-                stroke_color="#FFFF00",
-                background_image=img_rgba,
-                drawing_mode=draw_mode,
-                height=512,
-                width=512,
-                update_streamlit=True,
-                key=f"canvas_{filename}"
-            )
+                
+                canvas_result = st_canvas(
+                    fill_color="rgba(255, 255, 0, 0.3)",
+                    stroke_color="#FFFF00",
+                    background_image=img_for_canvas,
+                    drawing_mode=draw_mode,
+                    height=512,
+                    width=512,
+                    update_streamlit=True,
+                    key=f"canvas_{filename}"
+                )
 
             if canvas_result.json_data and "objects" in canvas_result.json_data:
                 for obj in canvas_result.json_data["objects"]:
