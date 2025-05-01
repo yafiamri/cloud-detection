@@ -27,7 +27,7 @@ def load_segmentation_model():
 # Fungsi untuk download dan cache YOLOv8
 @st.cache_resource
 def load_classification_model():
-    file_id = "11-10CnQQZE0MK_40I_BnWIyPUSScZmEu"
+    file_id = "1qG1nvsCBPxOPtiE2Po8yDS521SjfZisI"
     url = f"https://drive.google.com/uc?export=download&id={file_id}"
     output = "yolov8_cls.pt"
 
