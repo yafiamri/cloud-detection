@@ -57,7 +57,6 @@ if process and uploaded_files:
         filename = uploaded_file.name
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # Load image
         image_bytes = uploaded_file.read()
         npimg = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
@@ -66,7 +65,6 @@ if process and uploaded_files:
         image_np = np.array(img_pil) / 255.0
         roi_mask = np.zeros((512, 512), dtype=np.uint8)
 
-        # ROI Detection
         if roi_method == "Otomatis":
             roi_mask[:, :] = 1
 
@@ -93,11 +91,13 @@ if process and uploaded_files:
             if "Poligon" in roi_method:
                 draw_mode = "polygon"
 
-            img_pil.save("canvas_bg.png")
+            bg_path = f"canvas_bg_{filename}.png"
+            img_pil.save(bg_path)
+
             canvas_result = st_canvas(
                 fill_color="rgba(255, 255, 0, 0.3)",
                 stroke_color="#FFFF00",
-                background_image=Image.open("canvas_bg.png"),
+                background_image=bg_path,  # string path, bukan image object
                 drawing_mode=draw_mode,
                 height=512,
                 width=512,
@@ -119,13 +119,14 @@ if process and uploaded_files:
                     elif obj["type"] == "polygon":
                         pts = [(int(p["x"]), int(p["y"])) for p in obj["points"]]
                         cv2.fillPoly(roi_mask, [np.array(pts, np.int32)], 1)
+
                 with open(f"roi_drawn_{filename}.json", "w") as f:
                     json.dump(canvas_result.json_data, f)
             else:
-                st.warning(f"Silakan gambar ROI untuk {filename} terlebih dahulu.")
+                st.warning(f"Silakan gambar ROI terlebih dahulu untuk {filename}.")
                 continue
 
-        # Segmentation
+        # SEGMENTASI
         input_tensor = torch.from_numpy(image_np.transpose(2, 0, 1)).float().unsqueeze(0)
         with torch.no_grad():
             output = seg_model(input_tensor)["out"].squeeze().numpy()
@@ -135,7 +136,7 @@ if process and uploaded_files:
         roi_area = roi_mask.sum()
         coverage = 100 * cloud_area / roi_area if roi_area > 0 else 0
 
-        # Classification
+        # KLASIFIKASI
         temp_path = "temp.jpg"
         cv2.imwrite(temp_path, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
         result = cls_model.predict(temp_path, verbose=False)[0]
@@ -154,7 +155,7 @@ if process and uploaded_files:
         else:
             sky_condition = "Cloudy"
 
-        # Overlay with watermark
+        # OVERLAY + WATERMARK
         overlay = image_np.copy()
         red = np.zeros_like(overlay)
         red[:, :, 0] = 1.0
@@ -166,13 +167,13 @@ if process and uploaded_files:
         draw = ImageDraw.Draw(overlay_img)
         draw.text((10, 490), "AI-Based Cloud Detection by Yafi Amri", fill=(255, 255, 255))
 
-        # Display
+        # TAMPILKAN HASIL
         st.subheader(f"📷 {filename}")
         col1, col2 = st.columns(2)
         col1.image(img_rgb, caption="Gambar Asli")
         col2.image(overlay_img, caption=f"Coverage: {coverage:.2f}% | {sky_condition}\nCloud: {pred_label} ({pred_conf*100:.1f}%)")
 
-        # Save result
+        # SIMPAN KE TABEL
         results.append({
             "Filename": filename,
             "Timestamp": timestamp,
@@ -182,6 +183,6 @@ if process and uploaded_files:
             "Confidence (%)": round(pred_conf * 100, 2)
         })
 
-    # Export CSV
+    # DOWNLOAD CSV
     df = pd.DataFrame(results)
     st.download_button("⬇️ Download Hasil sebagai CSV", df.to_csv(index=False).encode("utf-8"), "cloud_detection_results.csv", "text/csv")
