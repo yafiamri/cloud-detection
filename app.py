@@ -93,10 +93,12 @@ if process and uploaded_files:
             img_pil.save(bg_path)
             bg_url = image_to_url(Image.open(bg_path), "PNG")
 
+            canvas_image_np = np.array(img_pil)
+
             canvas_result = st_canvas(
                 fill_color="rgba(255, 255, 0, 0.3)",
                 stroke_color="#FFFF00",
-                background_image=bg_url,
+                background_image=canvas_image_np,
                 drawing_mode=draw_mode,
                 height=512,
                 width=512,
