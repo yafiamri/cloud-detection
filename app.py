@@ -134,8 +134,18 @@ if st.button("▶️ Proses") and uploaded_files:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         image_resized, padding, resized_dim = resize_with_padding(image)
         image_np = np.array(image_resized) / 255.0
-        roi_mask = detect_circle_roi(image_np) or np.pad(np.ones(resized_dim[::-1], dtype=np.uint8),
-                                ((padding[1], padding[3]), (padding[0], padding[2])), constant_values=0)
+
+        try:
+            roi_mask = detect_circle_roi(image_np)
+            if roi_mask is None:
+                h, w = resized_dim[::-1]
+                if h <= 0 or w <= 0:
+                    raise ValueError(f"Ukuran padding tidak valid: {resized_dim}")
+                roi_mask = np.pad(np.ones((h, w), dtype=np.uint8),
+                                  ((padding[1], padding[3]), (padding[0], padding[2])), constant_values=0)
+        except Exception as e:
+            st.error(f"Gagal membentuk ROI mask untuk gambar {filename}: {e}")
+            continue
 
         input_tensor = torch.from_numpy(image_np.transpose(2, 0, 1)).float().unsqueeze(0)
         with torch.no_grad():
