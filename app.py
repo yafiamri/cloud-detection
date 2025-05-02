@@ -31,7 +31,7 @@ css_style = """
 """
 st.markdown(css_style, unsafe_allow_html=True)
 
-# === Model Loader ===
+# === Loader Model ===
 @st.cache_resource
 def load_segmentation_model():
     file_id = "14uQx6dGlV8iCJdQqhWZ6KczfQa7XuaEA"
@@ -54,7 +54,7 @@ def load_classification_model():
     model = YOLO(output)
     return model
 
-# === Preprocessing Functions ===
+# === Fungsi Preprocessing ===
 def resize_with_padding(image, target_size=512):
     w, h = image.size
     scale = target_size / max(w, h)
@@ -83,7 +83,7 @@ def detect_circle_roi(image_np):
     coverage_ratio = (mask_circle * (thresh > 0)).sum() / (np.pi * radius**2)
     return mask_circle if coverage_ratio > 0.85 else None
 
-# === PDF Export ===
+# === Fungsi PDF ===
 def buat_pdf_hasil(nama_file, timestamp, sky_condition, coverage, oktaf, top_preds_str, img1, img2, img3):
     pdf = FPDF()
     pdf.add_page()
@@ -91,16 +91,13 @@ def buat_pdf_hasil(nama_file, timestamp, sky_condition, coverage, oktaf, top_pre
     pdf.cell(200, 10, txt="Hasil Analisis Deteksi Awan Berbasis AI", ln=1, align="C")
     pdf.ln(5)
     pdf.set_font("Arial", size=11)
-    pdf.multi_cell(0, 10, txt=(
-        f"Nama Berkas: {nama_file}\n"
-        f"Waktu Analisis: {timestamp} WIB\n"
-        f"Kondisi Langit: {sky_condition}\n"
-        f"Tutupan Awan: {coverage:.2f}% (sekitar {oktaf} oktaf)\n"
-        f"Jenis Awan Terdeteksi:\n{top_preds_str}"
-    ))
+    pdf.multi_cell(0, 10, txt=(f"Nama Berkas: {nama_file}\n"
+                               f"Waktu Analisis: {timestamp} WIB\n"
+                               f"Kondisi Langit: {sky_condition}\n"
+                               f"Tutupan Awan: {coverage:.2f}% (sekitar {oktaf} oktaf)\n"
+                               f"Jenis Awan Terdeteksi:\n{top_preds_str}"))
     pdf.ln(5)
-    for idx, (title, img) in enumerate(zip([
-        "Gambar Asli (dengan ROI)", "Predicted Mask", "Overlay"], [img1, img2, img3])):
+    for idx, (title, img) in enumerate(zip(["Gambar Asli (dengan ROI)", "Predicted Mask", "Overlay"], [img1, img2, img3])):
         img_path = f"temp_vis_{idx}.png"
         img.save(img_path)
         pdf.set_font("Arial", style="B", size=11)
@@ -111,19 +108,24 @@ def buat_pdf_hasil(nama_file, timestamp, sky_condition, coverage, oktaf, top_pre
     pdf.output(output_path)
     return output_path
 
-# === Demo Gambar ===
+# === Gambar Demo dan Upload ===
+class DemoFile(io.BytesIO):
+    def __init__(self, content, name):
+        super().__init__(content)
+        self.name = name
+
 demo_gambar_paths = ["demo_cumulus.jpg", "demo_cirrus.jpg", "demo_mixed.jpg"]
 st.sidebar.header("🖼️ Gambar Contoh")
 selected_demo = st.sidebar.selectbox("Pilih gambar contoh untuk diuji", options=["(Tidak menggunakan demo)"] + demo_gambar_paths)
+
 if selected_demo != "(Tidak menggunakan demo)":
     with open(selected_demo, "rb") as f:
         demo_bytes = f.read()
-    uploaded_files = [io.BytesIO(demo_bytes)]
-    for uf in uploaded_files:
-        uf.name = selected_demo
+    uploaded_files = [DemoFile(demo_bytes, selected_demo)]
 else:
     uploaded_files = st.file_uploader("Unggah Gambar Langit", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
+# === Inisialisasi Model dan Proses ===
 process = st.button("▶️ Proses")
 seg_model = load_segmentation_model()
 cls_model = load_classification_model()
@@ -138,7 +140,8 @@ if process and uploaded_files:
         image_resized, padding, resized_dim = resize_with_padding(image)
         image_np = np.array(image_resized) / 255.0
 
-        roi_mask = detect_circle_roi(image_np) or np.pad(np.ones(resized_dim[::-1], dtype=np.uint8), ((padding[1], padding[3]), (padding[0], padding[2])), constant_values=0)
+        roi_mask = detect_circle_roi(image_np) or np.pad(np.ones(resized_dim[::-1], dtype=np.uint8),
+                                                         ((padding[1], padding[3]), (padding[0], padding[2])), constant_values=0)
         roi_area = roi_mask.sum()
 
         input_tensor = torch.from_numpy(image_np.transpose(2, 0, 1)).float().unsqueeze(0)
@@ -169,7 +172,6 @@ if process and uploaded_files:
 
         roi_contour = (roi_mask * 255).astype(np.uint8)
         contours, _ = cv2.findContours(roi_contour, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
         original_img = Image.fromarray(cv2.drawContours((image_np * 255).astype(np.uint8), contours, -1, (255,255,0), 2))
         mask_img_pil = Image.fromarray(cv2.drawContours(cv2.cvtColor((mask*255).astype(np.uint8), cv2.COLOR_GRAY2RGB), contours, -1, (255,255,0), 2))
         overlay_np = np.where((mask * roi_mask)[:, :, None] == 1, (1 - 0.4) * image_np + 0.4 * np.array([1, 0, 0]), image_np)
@@ -179,13 +181,11 @@ if process and uploaded_files:
 
         st.image(image, caption="🖼️ Gambar Asli (tanpa padding atau ROI)", use_column_width=True)
         st.subheader(f"📄 Hasil Analisis: {filename}")
-        st.markdown(f"""
-        🕒 **Waktu Analisis:** {timestamp} WIB  
-        ⛅ **Kondisi Langit:** {sky_condition}  
-        ☁️ **Tutupan Awan:** {coverage:.2f}% (sekitar {oktaf} oktaf)  
-        🌥️ **Jenis Awan Terdeteksi:**  
-        {top_preds_str}
-        """)
+        st.markdown(f"""🕒 **Waktu Analisis:** {timestamp} WIB  
+⛅ **Kondisi Langit:** {sky_condition}  
+☁️ **Tutupan Awan:** {coverage:.2f}% (sekitar {oktaf} oktaf)  
+🌥️ **Jenis Awan Terdeteksi:**  
+{top_preds_str}""")
 
         col1, col2, col3 = st.columns(3)
         col1.image(original_img, caption="Original (dengan ROI)")
