@@ -64,7 +64,7 @@ def detect_circle_roi(image_np):
     else:
         return None
 
-st.title("☁️ Aplikasi Deteksi Awan Berbasis AI")
+st.title("Sistem Deteksi Awan Berbasis AI")
 st.markdown("Unggah satu atau lebih gambar langit, lalu klik **Proses** untuk mendeteksi tutupan dan jenis awan secara otomatis.")
 
 seg_model = load_segmentation_model()
