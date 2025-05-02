@@ -57,6 +57,8 @@ def load_classification_model():
 # === Fungsi Preprocessing ===
 def resize_with_padding(image, target_size=512):
     w, h = image.size
+    if w == 0 or h == 0:
+        raise ValueError("Ukuran gambar tidak valid: width atau height = 0.")
     scale = target_size / max(w, h)
     new_w, new_h = int(w * scale), int(h * scale)
     resized = image.resize((new_w, new_h), resample=Image.BILINEAR)
@@ -119,9 +121,13 @@ st.sidebar.header("🖼️ Gambar Contoh")
 selected_demo = st.sidebar.selectbox("Pilih gambar contoh untuk diuji", options=["(Tidak menggunakan demo)"] + demo_gambar_paths)
 
 if selected_demo != "(Tidak menggunakan demo)":
-    with open(selected_demo, "rb") as f:
-        demo_bytes = f.read()
-    uploaded_files = [DemoFile(demo_bytes, selected_demo)]
+    try:
+        with open(selected_demo, "rb") as f:
+            demo_bytes = f.read()
+        uploaded_files = [DemoFile(demo_bytes, selected_demo)]
+    except FileNotFoundError:
+        st.error(f"File demo '{selected_demo}' tidak ditemukan. Pastikan file tersedia di direktori yang sama.")
+        uploaded_files = []
 else:
     uploaded_files = st.file_uploader("Unggah Gambar Langit", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
@@ -137,6 +143,9 @@ if process and uploaded_files:
         filename = uploaded_file.name
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         image = Image.open(uploaded_file).convert("RGB")
+        if image.size[0] == 0 or image.size[1] == 0:
+            st.error(f"Gambar '{filename}' tidak valid (ukuran nol).")
+            continue
         image_resized, padding, resized_dim = resize_with_padding(image)
         image_np = np.array(image_resized) / 255.0
 
