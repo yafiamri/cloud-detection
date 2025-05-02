@@ -11,7 +11,6 @@ from streamlit_drawable_canvas import st_canvas
 from ultralytics import YOLO
 from arsitektur_clouddeeplabv3 import CloudDeepLabV3Plus
 import json
-from streamlit_drawable_canvas.utils import image_to_url
 
 @st.cache_resource
 def load_segmentation_model():
