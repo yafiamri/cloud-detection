@@ -90,7 +90,6 @@ if process and uploaded_files:
 
             bg_path = f"canvas_bg_{filename}.png"
             img_pil.save(bg_path)
-            bg_url = image_to_url(Image.open(bg_path), "PNG")
 
             canvas_image_np = np.array(img_pil)
 
