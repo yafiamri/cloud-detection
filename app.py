@@ -10,6 +10,7 @@ from ultralytics import YOLO
 from arsitektur_clouddeeplabv3 import CloudDeepLabV3Plus
 import io
 from datetime import datetime
+from fpdf import FPDF
 
 @st.cache_resource
 def load_segmentation_model():
@@ -64,123 +65,129 @@ def detect_circle_roi(image_np):
     else:
         return None
 
-st.title("Sistem Deteksi Awan Berbasis AI")
-st.markdown("Unggah satu atau lebih gambar langit, lalu klik **Proses** untuk mendeteksi tutupan dan jenis awan secara otomatis.")
+# === Fungsi ekspor PDF ===
+def buat_pdf_hasil(nama_file, timestamp, sky_condition, coverage, oktaf, top_preds_str, img1, img2, img3):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
 
-seg_model = load_segmentation_model()
-cls_model = load_classification_model()
-class_names = ["cumulus", "altocumulus", "cirrus", "clearsky", "stratocumulus", "cumulonimbus", "mixed"]
+    pdf.cell(200, 10, txt="Hasil Analisis Deteksi Awan Berbasis AI", ln=1, align="C")
+    pdf.ln(5)
 
-uploaded_files = st.file_uploader("Unggah Gambar Langit", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-process = st.button("▶️ Proses")
+    pdf.set_font("Arial", size=11)
+    pdf.multi_cell(0, 10, txt=(
+        f"Nama Berkas: {nama_file}\n"
+        f"Waktu Analisis: {timestamp} WIB\n"
+        f"Kondisi Langit: {sky_condition}\n"
+        f"Tutupan Awan: {coverage:.2f}% (sekitar {oktaf} oktaf)\n"
+        f"Jenis Awan Terdeteksi:\n{top_preds_str}"
+    ))
+    pdf.ln(5)
 
-results = []
+    for idx, (title, img) in enumerate(zip([
+        "Gambar Asli (dengan ROI)",
+        "Predicted Mask", 
+        "Overlay"
+    ], [img1, img2, img3])):
+        img_path = f"temp_vis_{idx}.png"
+        img.save(img_path)
+        pdf.set_font("Arial", style="B", size=11)
+        pdf.cell(0, 8, txt=title, ln=1)
+        pdf.image(img_path, w=170)
+        pdf.ln(5)
 
-if process and uploaded_files:
-    for uploaded_file in uploaded_files:
-        filename = uploaded_file.name
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    pdf_output = f"hasil_{nama_file}.pdf"
+    pdf.output(pdf_output)
+    return pdf_output
 
-        image = Image.open(uploaded_file).convert("RGB")
-        is_square = image.size[0] == image.size[1]
-        image_resized, padding, resized_dim = resize_with_padding(image, target_size=512)
-        image_np = np.array(image_resized) / 255.0
+# === Demo Gambar Contoh ===
+demo_gambar_paths = [
+    "demo_cumulus.jpg",
+    "demo_cirrus.jpg",
+    "demo_mixed.jpg"
+]
 
-        h, w, _ = image_np.shape
-        roi_mask = np.ones((h, w), dtype=np.uint8)
-        circle_mask = detect_circle_roi(image_np)
-        if circle_mask is not None:
-            roi_mask = circle_mask
-        elif not is_square:
-            left, top, right, bottom = padding
-            roi_mask[:, :] = 0
-            roi_mask[top:top+resized_dim[1], left:left+resized_dim[0]] = 1
+st.sidebar.header("🖼️ Gambar Contoh")
+selected_demo = st.sidebar.selectbox("Pilih gambar contoh untuk diuji", options=["(Tidak menggunakan demo)"] + demo_gambar_paths)
 
-        roi_area = roi_mask.sum()
-        if roi_area == 0:
-            roi_mask[:, :] = 1
+if selected_demo != "(Tidak menggunakan demo)":
+    with open(selected_demo, "rb") as f:
+        demo_bytes = f.read()
+    uploaded_files = [io.BytesIO(demo_bytes)]
+    for uf in uploaded_files:
+        uf.name = selected_demo  # agar filename tetap sesuai
 
-        input_tensor = torch.from_numpy(image_np.transpose(2, 0, 1)).float().unsqueeze(0)
-        with torch.no_grad():
-            output = seg_model(input_tensor)["out"].squeeze().numpy()
-        mask = (output > 0.5).astype(np.uint8)
-        cloud_area = (mask * roi_mask).sum()
-        coverage = 100 * cloud_area / roi_area
-        oktaf = int(round((coverage / 100) * 8))
+# === Streamlit App ===
 
-        if coverage <= 10:
-            sky_condition = "Cerah"
-        elif coverage <= 30:
-            sky_condition = "Sebagian Cerah"
-        elif coverage <= 70:
-            sky_condition = "Sebagian Berawan"
-        elif coverage <= 90:
-            sky_condition = "Berawan"
-        else:
-            sky_condition = "Mendung"
+# Atur konfigurasi layout dan dark mode
+st.set_page_config(page_title="Deteksi Awan AI", layout="wide")
 
-        temp_path = "temp.jpg"
-        image.save(temp_path)
-        result = cls_model.predict(temp_path, verbose=False)[0]
-        probs = result.probs.data.tolist()
-        top_preds = sorted(zip(class_names, probs), key=lambda x: x[1], reverse=True)
-        pred_label, pred_conf = top_preds[0]
+css_style = """
+<style>
+    body {
+        color: #f0f0f0;
+        background-color: #0e1117;
+    }
+    .stButton>button {
+        color: white;
+        background-color: #4CAF50;
+    }
+</style>
+"""
 
-        roi_contour = (roi_mask * 255).astype(np.uint8)
-        contours, _ = cv2.findContours(roi_contour, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+st.markdown(css_style, unsafe_allow_html=True)
 
-        original_np = (image_np * 255).astype(np.uint8)
-        original_np = cv2.drawContours(original_np, contours, -1, (255, 255, 0), thickness=2)
-        original_img = Image.fromarray(original_np)
+        # Tambahkan tombol unduh PDF untuk setiap hasil
+        pdf_file = buat_pdf_hasil(
+            filename, timestamp, sky_condition, coverage, oktaf, top_preds_str,
+            original_img, mask_img_pil, overlay_img
+        )
 
-        mask_img = (mask * 255).astype(np.uint8)
-        mask_img_color = cv2.cvtColor(mask_img, cv2.COLOR_GRAY2RGB)
-        mask_img_color = cv2.drawContours(mask_img_color, contours, -1, (255, 255, 0), thickness=2)
-        mask_img_pil = Image.fromarray(mask_img_color)
+        with open(pdf_file, "rb") as f:
+            st.download_button(
+                label="⬇️ Unduh Hasil sebagai PDF",
+                data=f.read(),
+                file_name=pdf_file,
+                mime="application/pdf"
+            )
 
-        overlay = image_np.copy()
-        red = np.zeros_like(overlay)
-        red[:, :, 0] = 1.0
-        alpha = 0.4
-        blended = np.where((mask * roi_mask)[:, :, None] == 1,
-                           (1 - alpha) * overlay + alpha * red,
-                           overlay)
-        overlay_img = Image.fromarray((blended * 255).astype(np.uint8))
-        overlay_np = np.array(overlay_img)
-        overlay_np = cv2.drawContours(overlay_np, contours, -1, (255, 255, 0), thickness=2)
-        overlay_img = Image.fromarray(overlay_np)
-        draw = ImageDraw.Draw(overlay_img)
-        draw.text((10, 490), "AI-Based Cloud Detection by Yafi Amri", fill=(255, 255, 255))
+    # Zip semua PDF
+    from zipfile import ZipFile
+    zip_path = "semua_hasil_pdf.zip"
+    with ZipFile(zip_path, 'w') as zipf:
+        for file in os.listdir():
+            if file.startswith("hasil_") and file.endswith(".pdf"):
+                zipf.write(file)
 
-        st.image(image, caption="🖼️ Gambar Asli (tanpa padding atau ROI)", use_column_width=True)
+    with open(zip_path, "rb") as z:
+        st.download_button(
+            label="⬇️ Unduh Semua PDF sebagai ZIP",
+            data=z.read(),
+            file_name=zip_path,
+            mime="application/zip"
+        )
 
-        st.subheader(f"📄 Hasil Analisis: {filename}")
-        top_preds_str = "\n".join([
-            f"- {label} ({conf*100:.1f}% tingkat kepercayaan)"
-            for label, conf in top_preds if conf > 0.05
-        ])
-        st.markdown(f"""
-        🕒 **Waktu Analisis:** {timestamp} WIB  
-        ⛅ **Kondisi Langit:** {sky_condition}  
-        ☁️ **Tutupan Awan:** {coverage:.2f}% (sekitar {oktaf} oktaf)  
-        🌥️ **Jenis Awan Terdeteksi:**  
-        {top_preds_str}
-        """)
+    # === Visualisasi Ringkasan ===
+    st.markdown("## 📊 Ringkasan Hasil Analisis")
+    if not df.empty:
+        import matplotlib.pyplot as plt
 
-        col1, col2, col3 = st.columns(3)
-        col1.image(original_img, caption="Original (dengan Padding dan ROI)")
-        col2.image(mask_img_pil, caption=f"Predicted Mask\nCloud Coverage (ROI): {coverage:.2f}%")
-        col3.image(overlay_img, caption="Overlay with ROI")
+        # Histogram tutupan awan
+        fig1, ax1 = plt.subplots()
+        ax1.hist(df["Tutupan Awan (%)"], bins=8, color='skyblue', edgecolor='black')
+        ax1.set_title("Distribusi Tutupan Awan")
+        ax1.set_xlabel("Tutupan Awan (%)")
+        ax1.set_ylabel("Jumlah Citra")
+        st.pyplot(fig1)
 
-        results.append({
-            "Nama Berkas": filename,
-            "Waktu Analisis": timestamp,
-            "Tutupan Awan (%)": round(coverage, 2),
-            "Oktaf": oktaf,
-            "Kondisi Langit": sky_condition,
-            "Jenis Awan Top-1": pred_label,
-            "Tingkat Kepercayaan (%)": round(pred_conf * 100, 2)
-        })
+        # Pie chart jenis awan top-1
+        fig2, ax2 = plt.subplots()
+        cloud_counts = df["Jenis Awan Top-1"].value_counts()
+        ax2.pie(cloud_counts, labels=cloud_counts.index, autopct='%1.1f%%', startangle=140)
+        ax2.set_title("Proporsi Jenis Awan Top-1")
+        st.pyplot(fig2)
 
+    # === Unduh Hasil CSV ===
+    st.markdown("## 📥 Unduh Hasil Rekapitulasi")
     df = pd.DataFrame(results)
     st.download_button("⬇️ Unduh Hasil sebagai CSV", df.to_csv(index=False).encode("utf-8"), "hasil_deteksi_awan.csv", "text/csv")
