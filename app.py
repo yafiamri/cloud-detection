@@ -96,7 +96,6 @@ if process and uploaded_files:
             canvas_result = st_canvas(
                 fill_color="rgba(255, 255, 0, 0.3)",
                 stroke_color="#FFFF00",
-                background_image=canvas_image_np.tolist(),
                 drawing_mode=draw_mode,
                 height=512,
                 width=512,
