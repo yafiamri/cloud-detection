@@ -11,6 +11,7 @@ from streamlit_drawable_canvas import st_canvas
 from ultralytics import YOLO
 from arsitektur_clouddeeplabv3 import CloudDeepLabV3Plus
 import json
+from streamlit_drawable_canvas.utils import image_to_url
 
 @st.cache_resource
 def load_segmentation_model():
@@ -90,11 +91,12 @@ if process and uploaded_files:
 
             bg_path = f"canvas_bg_{filename}.png"
             img_pil.save(bg_path)
+            bg_url = image_to_url(Image.open(bg_path), "PNG")
 
             canvas_result = st_canvas(
                 fill_color="rgba(255, 255, 0, 0.3)",
                 stroke_color="#FFFF00",
-                background_image=Image.open(bg_path),
+                background_image=bg_url,
                 drawing_mode=draw_mode,
                 height=512,
                 width=512,
