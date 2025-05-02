@@ -96,6 +96,7 @@ if process and uploaded_files:
             canvas_result = st_canvas(
                 fill_color="rgba(255, 255, 0, 0.3)",
                 stroke_color="#FFFF00",
+                background_color="#000000"
                 drawing_mode=draw_mode,
                 height=512,
                 width=512,
