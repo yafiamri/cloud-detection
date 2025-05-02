@@ -64,14 +64,14 @@ def detect_circle_roi(image_np):
     else:
         return None
 
-st.title("☁️ AI-Based Cloud Detection App")
-st.markdown("Upload satu atau lebih gambar langit, lalu klik **Proses** untuk mendeteksi tutupan dan jenis awan secara otomatis.")
+st.title("☁️ Aplikasi Deteksi Awan Berbasis AI")
+st.markdown("Unggah satu atau lebih gambar langit, lalu klik **Proses** untuk mendeteksi tutupan dan jenis awan secara otomatis.")
 
 seg_model = load_segmentation_model()
 cls_model = load_classification_model()
 class_names = ["cumulus", "altocumulus", "cirrus", "clearsky", "stratocumulus", "cumulonimbus", "mixed"]
 
-uploaded_files = st.file_uploader("Upload Gambar Langit", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+uploaded_files = st.file_uploader("Unggah Gambar Langit", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 process = st.button("▶️ Proses")
 
 results = []
@@ -106,39 +106,27 @@ if process and uploaded_files:
         mask = (output > 0.5).astype(np.uint8)
         cloud_area = (mask * roi_mask).sum()
         coverage = 100 * cloud_area / roi_area
+        oktaf = int(round((coverage / 100) * 8))
 
         temp_path = "temp.jpg"
         image.save(temp_path)
         result = cls_model.predict(temp_path, verbose=False)[0]
-        pred_idx = result.probs.top1
-        pred_conf = result.probs.data[pred_idx].item()
-        pred_label = class_names[pred_idx]
+        probs = result.probs.data.tolist()
+        top_preds = sorted(zip(class_names, probs), key=lambda x: x[1], reverse=True)
+        pred_label, pred_conf = top_preds[0]
 
-        if coverage <= 10:
-            sky_condition = "Clear"
-        elif coverage <= 30:
-            sky_condition = "Mostly Clear"
-        elif coverage <= 70:
-            sky_condition = "Partly Cloudy"
-        elif coverage <= 90:
-            sky_condition = "Mostly Cloudy"
-        else:
-            sky_condition = "Cloudy"
-
-        # Original with ROI outline
-        original_np = (image_np * 255).astype(np.uint8)
         roi_contour = (roi_mask * 255).astype(np.uint8)
         contours, _ = cv2.findContours(roi_contour, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        original_np = (image_np * 255).astype(np.uint8)
         original_np = cv2.drawContours(original_np, contours, -1, (255, 255, 0), thickness=2)
         original_img = Image.fromarray(original_np)
 
-        # Predicted Mask with ROI outline
         mask_img = (mask * 255).astype(np.uint8)
         mask_img_color = cv2.cvtColor(mask_img, cv2.COLOR_GRAY2RGB)
         mask_img_color = cv2.drawContours(mask_img_color, contours, -1, (255, 255, 0), thickness=2)
         mask_img_pil = Image.fromarray(mask_img_color)
 
-        # Overlay with ROI + Watermark
         overlay = image_np.copy()
         red = np.zeros_like(overlay)
         red[:, :, 0] = 1.0
@@ -150,30 +138,38 @@ if process and uploaded_files:
         overlay_np = np.array(overlay_img)
         overlay_np = cv2.drawContours(overlay_np, contours, -1, (255, 255, 0), thickness=2)
         overlay_img = Image.fromarray(overlay_np)
-
         draw = ImageDraw.Draw(overlay_img)
         draw.text((10, 490), "AI-Based Cloud Detection by Yafi Amri", fill=(255, 255, 255))
 
-        st.subheader(f"📷 {filename}")
+        st.image(image, caption="🖼️ Gambar Asli (tanpa padding atau ROI)", use_column_width=True)
+
+        st.subheader(f"📄 Hasil Analisis: {filename}")
+        top_preds_str = "\n".join([
+            f"- {label} ({conf*100:.1f}% tingkat kepercayaan)"
+            for label, conf in top_preds if conf > 0.05
+        ])
         st.markdown(f"""
-        **⛅ Sky Condition:** {sky_condition}  
-        **☁️ Cloud Coverage:** {coverage:.2f}%  
-        **🌥️ Cloud Type:** {pred_label} ({pred_conf*100:.1f}% confidence)
+        🕒 **Waktu Analisis:** {timestamp} WIB  
+        ⛅ **Kondisi Langit:** {sky_condition}  
+        ☁️ **Tutupan Awan:** {coverage:.2f}% (sekitar {oktaf} oktaf)  
+        🌥️ **Jenis Awan Terdeteksi:**  
+        {top_preds_str}
         """)
 
         col1, col2, col3 = st.columns(3)
-        col1.image(original_img, caption="Original (with Padding)")
+        col1.image(original_img, caption="Original (dengan Padding dan ROI)")
         col2.image(mask_img_pil, caption=f"Predicted Mask\nCloud Coverage (ROI): {coverage:.2f}%")
         col3.image(overlay_img, caption="Overlay with ROI")
 
         results.append({
-            "Filename": filename,
-            "Timestamp": timestamp,
-            "Cloud Coverage (%)": round(coverage, 2),
-            "Sky Condition": sky_condition,
-            "Cloud Class": pred_label,
-            "Confidence (%)": round(pred_conf * 100, 2)
+            "Nama Berkas": filename,
+            "Waktu Analisis": timestamp,
+            "Tutupan Awan (%)": round(coverage, 2),
+            "Oktaf": oktaf,
+            "Kondisi Langit": sky_condition,
+            "Jenis Awan Top-1": pred_label,
+            "Tingkat Kepercayaan (%)": round(pred_conf * 100, 2)
         })
 
     df = pd.DataFrame(results)
-    st.download_button("⬇️ Download Hasil sebagai CSV", df.to_csv(index=False).encode("utf-8"), "cloud_detection_results.csv", "text/csv")
+    st.download_button("⬇️ Unduh Hasil sebagai CSV", df.to_csv(index=False).encode("utf-8"), "hasil_deteksi_awan.csv", "text/csv")
