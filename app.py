@@ -11,7 +11,6 @@ from arsitektur_clouddeeplabv3 import CloudDeepLabV3Plus
 import io
 from datetime import datetime
 
-# ======================== Model Loader ========================
 @st.cache_resource
 def load_segmentation_model():
     file_id = "14uQx6dGlV8iCJdQqhWZ6KczfQa7XuaEA"
@@ -34,7 +33,6 @@ def load_classification_model():
     model = YOLO(output)
     return model
 
-# ======================== Preprocessing ========================
 def resize_with_padding(image, target_size=512):
     w, h = image.size
     scale = target_size / max(w, h)
@@ -66,7 +64,6 @@ def detect_circle_roi(image_np):
     else:
         return None
 
-# ======================== Streamlit UI ========================
 st.title("☁️ AI-Based Cloud Detection App")
 st.markdown("Upload satu atau lebih gambar langit, lalu klik **Proses** untuk mendeteksi tutupan dan jenis awan secara otomatis.")
 
@@ -89,7 +86,6 @@ if process and uploaded_files:
         image_resized, padding, resized_dim = resize_with_padding(image, target_size=512)
         image_np = np.array(image_resized) / 255.0
 
-        # ROI otomatis
         h, w, _ = image_np.shape
         roi_mask = np.ones((h, w), dtype=np.uint8)
         circle_mask = detect_circle_roi(image_np)
@@ -104,7 +100,6 @@ if process and uploaded_files:
         if roi_area == 0:
             roi_mask[:, :] = 1
 
-        # Segmentasi
         input_tensor = torch.from_numpy(image_np.transpose(2, 0, 1)).float().unsqueeze(0)
         with torch.no_grad():
             output = seg_model(input_tensor)["out"].squeeze().numpy()
@@ -112,7 +107,6 @@ if process and uploaded_files:
         cloud_area = (mask * roi_mask).sum()
         coverage = 100 * cloud_area / roi_area
 
-        # Klasifikasi
         temp_path = "temp.jpg"
         image.save(temp_path)
         result = cls_model.predict(temp_path, verbose=False)[0]
@@ -120,7 +114,6 @@ if process and uploaded_files:
         pred_conf = result.probs.data[pred_idx].item()
         pred_label = class_names[pred_idx]
 
-        # Interpretasi cuaca
         if coverage <= 10:
             sky_condition = "Clear"
         elif coverage <= 30:
@@ -132,7 +125,20 @@ if process and uploaded_files:
         else:
             sky_condition = "Cloudy"
 
-        # Overlay
+        # Original with ROI outline
+        original_np = (image_np * 255).astype(np.uint8)
+        roi_contour = (roi_mask * 255).astype(np.uint8)
+        contours, _ = cv2.findContours(roi_contour, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        original_np = cv2.drawContours(original_np, contours, -1, (255, 255, 0), thickness=2)
+        original_img = Image.fromarray(original_np)
+
+        # Predicted Mask with ROI outline
+        mask_img = (mask * 255).astype(np.uint8)
+        mask_img_color = cv2.cvtColor(mask_img, cv2.COLOR_GRAY2RGB)
+        mask_img_color = cv2.drawContours(mask_img_color, contours, -1, (255, 255, 0), thickness=2)
+        mask_img_pil = Image.fromarray(mask_img_color)
+
+        # Overlay with ROI + Watermark
         overlay = image_np.copy()
         red = np.zeros_like(overlay)
         red[:, :, 0] = 1.0
@@ -141,22 +147,24 @@ if process and uploaded_files:
                            (1 - alpha) * overlay + alpha * red,
                            overlay)
         overlay_img = Image.fromarray((blended * 255).astype(np.uint8))
-
-        # Tambahkan outline ROI
-        roi_contour = (roi_mask * 255).astype(np.uint8)
-        contours, _ = cv2.findContours(roi_contour, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         overlay_np = np.array(overlay_img)
-        cv2.drawContours(overlay_np, contours, -1, (255, 255, 0), thickness=2)  # kuning
+        overlay_np = cv2.drawContours(overlay_np, contours, -1, (255, 255, 0), thickness=2)
         overlay_img = Image.fromarray(overlay_np)
 
         draw = ImageDraw.Draw(overlay_img)
         draw.text((10, 490), "AI-Based Cloud Detection by Yafi Amri", fill=(255, 255, 255))
 
-        # Tampilan
         st.subheader(f"📷 {filename}")
-        col1, col2 = st.columns(2)
-        col1.image(image, caption="Gambar Asli")
-        col2.image(overlay_img, caption=f"Coverage: {coverage:.2f}% | {sky_condition}\nCloud: {pred_label} ({pred_conf*100:.1f}%)")
+        st.markdown(f"""
+        **⛅ Sky Condition:** {sky_condition}  
+        **☁️ Cloud Coverage:** {coverage:.2f}%  
+        **🌥️ Cloud Type:** {pred_label} ({pred_conf*100:.1f}% confidence)
+        """)
+
+        col1, col2, col3 = st.columns(3)
+        col1.image(original_img, caption="Original (with Padding)")
+        col2.image(mask_img_pil, caption=f"Predicted Mask\nCloud Coverage (ROI): {coverage:.2f}%")
+        col3.image(overlay_img, caption="Overlay with ROI")
 
         results.append({
             "Filename": filename,
