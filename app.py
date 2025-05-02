@@ -141,6 +141,14 @@ if process and uploaded_files:
                            (1 - alpha) * overlay + alpha * red,
                            overlay)
         overlay_img = Image.fromarray((blended * 255).astype(np.uint8))
+
+        # Tambahkan outline ROI
+        roi_contour = (roi_mask * 255).astype(np.uint8)
+        contours, _ = cv2.findContours(roi_contour, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        overlay_np = np.array(overlay_img)
+        cv2.drawContours(overlay_np, contours, -1, (255, 255, 0), thickness=2)  # kuning
+        overlay_img = Image.fromarray(overlay_np)
+
         draw = ImageDraw.Draw(overlay_img)
         draw.text((10, 490), "AI-Based Cloud Detection by Yafi Amri", fill=(255, 255, 255))
 
