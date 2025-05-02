@@ -108,6 +108,17 @@ if process and uploaded_files:
         coverage = 100 * cloud_area / roi_area
         oktaf = int(round((coverage / 100) * 8))
 
+        if coverage <= 10:
+            sky_condition = "Cerah"
+        elif coverage <= 30:
+            sky_condition = "Sebagian Cerah"
+        elif coverage <= 70:
+            sky_condition = "Sebagian Berawan"
+        elif coverage <= 90:
+            sky_condition = "Berawan"
+        else:
+            sky_condition = "Mendung"
+
         temp_path = "temp.jpg"
         image.save(temp_path)
         result = cls_model.predict(temp_path, verbose=False)[0]
