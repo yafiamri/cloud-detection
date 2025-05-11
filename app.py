@@ -130,12 +130,12 @@ if st.button("▶️ Proses") and uploaded_files:
             canvas_result = st_canvas(
                 fill_color="rgba(255, 0, 0, 0.3)",
                 stroke_width=2,
-                background_image=image_resized.copy(),
+                background_image=image_resized.copy(),  # aman untuk versi streamlit-drawable-canvas
                 update_streamlit=True,
                 height=target_size,
                 width=target_size,
                 drawing_mode="polygon" if roi_option == "Manual (Poligon)" else "rect",
-                key=f"canvas_{filename}"
+                key=f"canvas_{filename}_{roi_option.replace(' ', '_')}"  # key dinamis aman
             )
             mask_circle = np.zeros((target_size, target_size), dtype=np.uint8)
             if canvas_result.json_data and canvas_result.json_data["objects"]:
