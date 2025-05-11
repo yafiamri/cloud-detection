@@ -77,7 +77,15 @@ def export_pdf(nama_file, timestamp, sky_condition, coverage, oktaf, top_preds_s
 
 seg_model = load_segmentation_model()
 cls_model = load_classification_model()
-class_names = ["cumulus", "altocumulus", "cirrus", "clearsky", "stratocumulus", "cumulonimbus", "mixed"]
+class_names = [
+    'Cumulus',
+    'Altocumulus / Cirrocumulus',
+    'Cirrus / Cirrostratus',
+    'Clear Sky',
+    'Stratocumulus / Stratus / Altostratus',
+    'Cumulonimbus / Nimbostratus',
+    'Mixed Cloud'
+]
 
 demo_paths = ["demo_cumulus.jpg", "demo_cirrus.jpg", "demo_mixed.jpg"]
 st.sidebar.header("🖼️ Gambar Contoh")
@@ -117,15 +125,25 @@ if uploaded_files:
     mask_circle = np.ones((target_size, target_size), dtype=np.uint8)
     manual_mask = None
 
-    if roi_option == "Otomatis (Lingkaran)":
+    def detect_circle_roi(image_np):
         gray = cv2.cvtColor((image_np * 255).astype(np.uint8), cv2.COLOR_RGB2GRAY)
+        h, w = gray.shape
         blur = cv2.GaussianBlur(gray, (7, 7), 0)
         _, thresh = cv2.threshold(blur, 10, 255, cv2.THRESH_BINARY)
         contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        ((x, y), radius) = cv2.minEnclosingCircle(max(contours, key=cv2.contourArea))
-        center, radius = (int(x), int(y)), int(radius)
-        mask_circle = np.zeros(gray.shape, dtype=np.uint8)
-        cv2.circle(mask_circle, center, radius, 1, -1)
+        if not contours:
+            return np.ones((h, w), dtype=np.uint8)  # fallback
+        largest = max(contours, key=cv2.contourArea)
+        ((x, y), radius) = cv2.minEnclosingCircle(largest)
+        center = (int(x), int(y))
+        radius = int(radius)
+        mask = np.zeros((h, w), dtype=np.uint8)
+        cv2.circle(mask, center, radius, 1, -1)
+        coverage_ratio = (mask * (thresh > 0)).sum() / (np.pi * radius**2)
+        return mask if coverage_ratio > 0.85 else np.ones((h, w), dtype=np.uint8)  # fallback
+    
+    if roi_option == "Otomatis (Lingkaran)":
+        mask_circle = detect_circle_roi(image_np)
 
     elif roi_option.startswith("Manual"):
         st.warning("Silakan gambar ROI pada kanvas di bawah ini")
@@ -149,15 +167,23 @@ if uploaded_files:
                     w, h = int(obj["width"]), int(obj["height"])
                     manual_mask[t:t+h, l:l+w] = 1
                 elif "Poligon" in roi_option:
-                    coords = [pt for pt in obj["path"] if isinstance(pt, list) and len(pt) == 2]
-                    if len(coords) >= 3:
-                        poly = np.array([[int(p[0]), int(p[1])] for p in coords], dtype=np.int32).reshape((-1, 1, 2))
-                        cv2.fillPoly(manual_mask, [poly], 1)
+                    if obj.get("path"):
+                        poly = np.array([[int(p[0]), int(p[1])] for p in obj["path"] if isinstance(p, list) and len(p) == 2], dtype=np.int32)
+                        if poly.shape[0] >= 3:
+                            cv2.fillPoly(manual_mask, [poly.reshape((-1, 1, 2))], 1)
                 elif "Lingkaran" in roi_option:
-                    cx = int(obj.get("left", 0) + obj.get("width", 0) / 2)
-                    cy = int(obj.get("top", 0) + obj.get("height", 0) / 2)
-                    radius = int(obj.get("width", 0) / 2)
+                    left = int(obj.get("left", 0))
+                    top = int(obj.get("top", 0))
+                    width = int(obj.get("width", 0))
+                    height = int(obj.get("height", 0))
+                    cx = left + width // 2
+                    cy = top + height // 2
+                    radius = min(width, height) // 2
                     cv2.circle(manual_mask, (cx, cy), radius, 1, -1)
+
+    if mask_to_use.sum() == 0:
+    st.error("ROI tidak terdeteksi dengan benar. Silakan periksa kembali gambar atau metode ROI yang digunakan.")
+    st.stop()
                     
     if st.button("▶️ Proses"):
         mask_to_use = manual_mask if manual_mask is not None else mask_circle
