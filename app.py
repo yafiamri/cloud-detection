@@ -77,8 +77,24 @@ seg_model = load_segmentation_model()
 cls_model = load_classification_model()
 class_names = ["cumulus", "altocumulus", "cirrus", "clearsky", "stratocumulus", "cumulonimbus", "mixed"]
 
+demo_gambar_paths = ["demo_cumulus.jpg", "demo_cirrus.jpg", "demo_mixed.jpg"]
+st.sidebar.header("🖼️ Gambar Contoh")
+selected_demo = st.sidebar.selectbox("Pilih gambar contoh", ["(Tidak menggunakan demo)"] + demo_gambar_paths)
+if selected_demo != "(Tidak menggunakan demo)":
+    with open(selected_demo, "rb") as f:
+        uploaded_files = [f]
+        uploaded_files[0].name = selected_demo
+else:
+    uploaded_files = st.file_uploader("Unggah Gambar Langit", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+
 roi_option = st.sidebar.radio("Pilih Metode ROI:", ["Otomatis (Lingkaran)", "Manual (Kotak)", "Manual (Poligon)", "Manual (Lingkaran)"])
-uploaded_file = st.file_uploader("Unggah Gambar Langit", type=["jpg", "jpeg", "png"])
+
+if uploaded_files:
+    st.subheader("🖼️ Pratinjau Gambar")
+    cols = st.columns(len(uploaded_files))
+    for i, f in enumerate(uploaded_files):
+        img = Image.open(f).convert("RGB")
+        cols[i].image(img, caption=f.name, width=180)
 
 if uploaded_file:
     filename = uploaded_file.name
