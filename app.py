@@ -198,7 +198,12 @@ if uploaded_files:
                                 cy = top + height // 2
                                 radius = min(width, height) // 2
                                 cv2.circle(manual_mask, (cx, cy), radius, 1, -1)
-                    manual_mask = np.pad(manual_mask, ((padding[1], padding[3]), (padding[0], padding[2])), mode='constant')
+                        if manual_mask.shape != (target_size, target_size):
+                            manual_mask = np.pad(
+                                manual_mask,
+                                ((padding[1], padding[3]), (padding[0], padding[2])),
+                                mode='constant'
+                            )
                             
             if st.button(f"▶️ Proses {filename}", key=f"process_{filename}"):
                 mask_to_use = manual_mask if manual_mask is not None else mask_circle
