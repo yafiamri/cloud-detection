@@ -99,57 +99,65 @@ if uploaded_files:
         img = Image.open(f).convert("RGB")
         cols[i].image(img, caption=f.name, width=180)
 
-if st.button("▶️ Proses") and uploaded_files:
-    for uploaded_file in uploaded_files:
-        filename = uploaded_file.name
-        image = Image.open(uploaded_file).convert("RGB")
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    uploaded_file = uploaded_files[0]
+    filename = uploaded_file.name
+    image = Image.open(uploaded_file).convert("RGB")
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        w, h = image.size
-        target_size = 512
-        scale = target_size / max(w, h)
-        new_w, new_h = int(w * scale), int(h * scale)
-        resized = image.resize((new_w, new_h), resample=Image.BILINEAR)
-        delta_w, delta_h = target_size - new_w, target_size - new_h
-        padding = (delta_w // 2, delta_h // 2, delta_w - delta_w // 2, delta_h - delta_h // 2)
-        image_resized = ImageOps.expand(resized, padding, fill=(0, 0, 0))
-        image_np = np.array(image_resized) / 255.0
+    w, h = image.size
+    target_size = 512
+    scale = target_size / max(w, h)
+    new_w, new_h = int(w * scale), int(h * scale)
+    resized = image.resize((new_w, new_h), resample=Image.BILINEAR)
+    delta_w, delta_h = target_size - new_w, target_size - new_h
+    padding = (delta_w // 2, delta_h // 2, delta_w - delta_w // 2, delta_h - delta_h // 2)
+    image_resized = ImageOps.expand(resized, padding, fill=(0, 0, 0))
+    image_np = np.array(image_resized) / 255.0
 
-        mask_circle = np.ones((target_size, target_size), dtype=np.uint8)
-        if roi_option == "Otomatis (Lingkaran)":
-            gray = cv2.cvtColor((image_np * 255).astype(np.uint8), cv2.COLOR_RGB2GRAY)
-            blur = cv2.GaussianBlur(gray, (7, 7), 0)
-            _, thresh = cv2.threshold(blur, 10, 255, cv2.THRESH_BINARY)
-            contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            ((x, y), radius) = cv2.minEnclosingCircle(max(contours, key=cv2.contourArea))
-            center, radius = (int(x), int(y)), int(radius)
-            mask_circle = np.zeros(gray.shape, dtype=np.uint8)
-            cv2.circle(mask_circle, center, radius, 1, -1)
-        elif roi_option in ["Manual (Kotak)", "Manual (Poligon)"]:
-            st.warning("Silakan gambar ROI pada kanvas di bawah ini")
-            canvas_result = st_canvas(
-                fill_color="rgba(255, 0, 0, 0.3)",
-                stroke_width=2,
-                background_image=image_resized.copy(),  # aman untuk versi streamlit-drawable-canvas
-                update_streamlit=True,
-                height=target_size,
-                width=target_size,
-                drawing_mode="polygon" if roi_option == "Manual (Poligon)" else "rect",
-                key=f"canvas_{filename}_{roi_option.replace(' ', '_')}"  # key dinamis aman
-            )
-            mask_circle = np.zeros((target_size, target_size), dtype=np.uint8)
-            if canvas_result.json_data and canvas_result.json_data["objects"]:
-                for obj in canvas_result.json_data["objects"]:
-                    if roi_option == "Manual (Kotak)":
-                        left = int(obj["left"])
-                        top = int(obj["top"])
-                        width = int(obj["width"])
-                        height = int(obj["height"])
-                        mask_circle[top:top+height, left:left+width] = 1
-                    elif roi_option == "Manual (Poligon)":
-                        points = obj["path"]
-                        poly = np.array(points).astype(np.int32)
-                        cv2.fillPoly(mask_circle, [poly], 1)
+    mask_circle = np.ones((target_size, target_size), dtype=np.uint8)
+    manual_mask = None
+
+    if roi_option == "Otomatis (Lingkaran)":
+        gray = cv2.cvtColor((image_np * 255).astype(np.uint8), cv2.COLOR_RGB2GRAY)
+        blur = cv2.GaussianBlur(gray, (7, 7), 0)
+        _, thresh = cv2.threshold(blur, 10, 255, cv2.THRESH_BINARY)
+        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        ((x, y), radius) = cv2.minEnclosingCircle(max(contours, key=cv2.contourArea))
+        center, radius = (int(x), int(y)), int(radius)
+        mask_circle = np.zeros(gray.shape, dtype=np.uint8)
+        cv2.circle(mask_circle, center, radius, 1, -1)
+
+    elif roi_option in ["Manual (Kotak)", "Manual (Poligon)"]:
+        st.warning("Silakan gambar ROI pada kanvas di bawah ini")
+        canvas_result = st_canvas(
+            fill_color="rgba(255, 0, 0, 0.3)",
+            stroke_width=2,
+            background_image=image_resized.copy(),
+            update_streamlit=True,
+            height=target_size,
+            width=target_size,
+            drawing_mode="polygon" if roi_option == "Manual (Poligon)" else "rect",
+            key=f"canvas_{filename}_{roi_option.replace(' ', '_')}"
+        )
+
+        if canvas_result and canvas_result.json_data and canvas_result.json_data["objects"]:
+            manual_mask = np.zeros((target_size, target_size), dtype=np.uint8)
+            for obj in canvas_result.json_data["objects"]:
+                if roi_option == "Manual (Kotak)":
+                    left = int(obj["left"])
+                    top = int(obj["top"])
+                    width = int(obj["width"])
+                    height = int(obj["height"])
+                    manual_mask[top:top+height, left:left+width] = 1
+                elif roi_option == "Manual (Poligon)":
+                    points = obj["path"]
+                    poly = np.array(points).astype(np.int32)
+                    cv2.fillPoly(manual_mask, [poly], 1)
+
+    if st.button("▶️ Proses"):
+        # Gunakan masking manual jika ada
+        if roi_option in ["Manual (Kotak)", "Manual (Poligon)"] and manual_mask is not None:
+            mask_circle = manual_mask
 
         input_tensor = torch.from_numpy(image_np.transpose(2, 0, 1)).float().unsqueeze(0)
         with torch.no_grad():
