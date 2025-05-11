@@ -157,10 +157,11 @@ if uploaded_files:
                         poly = np.array([[int(p[0]), int(p[1])] for p in coords], dtype=np.int32).reshape((-1, 1, 2))
                         cv2.fillPoly(manual_mask, [poly], 1)
 
-    if st.button("▶️ Proses"):
-        # Gunakan masking manual jika ada
-        if roi_option in ["Manual (Kotak)", "Manual (Poligon)"] and manual_mask is not None:
-            mask_circle = manual_mask
+        if st.button("▶️ Proses"):
+            if roi_option in ["Manual (Kotak)", "Manual (Poligon)"] and manual_mask is not None:
+                mask_circle = manual_mask
+            else:
+                mask_circle = np.ones((target_size, target_size), dtype=np.uint8)
 
         input_tensor = torch.from_numpy(image_np.transpose(2, 0, 1)).float().unsqueeze(0)
         with torch.no_grad():
