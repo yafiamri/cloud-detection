@@ -130,7 +130,7 @@ if st.button("▶️ Proses") and uploaded_files:
             canvas_result = st_canvas(
                 fill_color="rgba(255, 0, 0, 0.3)",
                 stroke_width=2,
-                background_image=image_resized,
+                background_image=np.array(image_resized),
                 update_streamlit=True,
                 height=target_size,
                 width=target_size,
