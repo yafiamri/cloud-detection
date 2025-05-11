@@ -1,12 +1,12 @@
 streamlit
 streamlit-drawable-canvas
+pillow
 torch
 torchvision
+gdown
 ultralytics
 opencv-python
-gdown
-pillow
 numpy
-pandas
 matplotlib
+timm
 fpdf
