@@ -48,6 +48,29 @@ def load_classification_model():
     model = YOLO(output)
     return model
 
+def detect_circle_roi(image_np):
+    gray = cv2.cvtColor((image_np * 255).astype(np.uint8), cv2.COLOR_RGB2GRAY)
+    h, w = gray.shape
+    blur = cv2.GaussianBlur(gray, (7, 7), 0)
+    _, thresh = cv2.threshold(blur, 10, 255, cv2.THRESH_BINARY)
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return np.ones((h, w), dtype=np.uint8)  # fallback ke semua area
+
+    largest = max(contours, key=cv2.contourArea)
+    ((x, y), radius) = cv2.minEnclosingCircle(largest)
+    center = (int(x), int(y))
+    radius = int(radius)
+
+    mask = np.zeros((h, w), dtype=np.uint8)
+    cv2.circle(mask, center, radius, 1, -1)
+
+    coverage_ratio = (mask * (thresh > 0)).sum() / (np.pi * radius**2)
+    if coverage_ratio > 0.85:
+        return mask
+    else:
+        return np.ones((h, w), dtype=np.uint8)  # fallback ke semua area jika bentuk tidak lingkaran
+
 def export_pdf(nama_file, timestamp, sky_condition, coverage, oktaf, top_preds_str, img1, img2, img3):
     pdf = FPDF()
     pdf.add_page()
@@ -129,29 +152,6 @@ if uploaded_files:
             mask_circle = detect_circle_roi(image_np_raw)
             mask_circle = np.pad(mask_circle, ((padding[1], padding[3]), (padding[0], padding[2])), mode='constant')        
             manual_mask = None
-        
-            def detect_circle_roi(image_np):
-                gray = cv2.cvtColor((image_np * 255).astype(np.uint8), cv2.COLOR_RGB2GRAY)
-                h, w = gray.shape
-                blur = cv2.GaussianBlur(gray, (7, 7), 0)
-                _, thresh = cv2.threshold(blur, 10, 255, cv2.THRESH_BINARY)
-                contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                if not contours:
-                    return np.ones((h, w), dtype=np.uint8)  # fallback ke semua area
-            
-                largest = max(contours, key=cv2.contourArea)
-                ((x, y), radius) = cv2.minEnclosingCircle(largest)
-                center = (int(x), int(y))
-                radius = int(radius)
-            
-                mask = np.zeros((h, w), dtype=np.uint8)
-                cv2.circle(mask, center, radius, 1, -1)
-            
-                coverage_ratio = (mask * (thresh > 0)).sum() / (np.pi * radius**2)
-                if coverage_ratio > 0.85:
-                    return mask
-                else:
-                    return np.ones((h, w), dtype=np.uint8)  # fallback ke semua area jika bentuk tidak lingkaran
             
             if roi_option == "Otomatis (Lingkaran)":
                 mask_circle = detect_circle_roi(image_np)
