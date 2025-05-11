@@ -152,8 +152,10 @@ if uploaded_files:
                 elif roi_option == "Manual (Poligon)":
                     points = obj["path"]
                     coords = [point for point in points if isinstance(point, list) and len(point) == 2]
-                    poly = np.array([[int(p[0]), int(p[1])] for p in coords]).astype(np.int32)
-                    cv2.fillPoly(manual_mask, [poly], 1)
+                    if len(coords) >= 3:
+                        # Format ke bentuk (N, 1, 2) untuk fillPoly
+                        poly = np.array([[int(p[0]), int(p[1])] for p in coords], dtype=np.int32).reshape((-1, 1, 2))
+                        cv2.fillPoly(manual_mask, [poly], 1)
 
     if st.button("▶️ Proses"):
         # Gunakan masking manual jika ada
