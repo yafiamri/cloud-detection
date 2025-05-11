@@ -149,9 +149,14 @@ if uploaded_files:
             padding = (delta_w // 2, delta_h // 2, delta_w - delta_w // 2, delta_h - delta_h // 2)
             image_resized = ImageOps.expand(resized_no_pad, padding, fill=(0, 0, 0))
             image_np = np.array(image_resized) / 255.0
+            
             mask_circle = detect_circle_roi(image_np_raw)
-            mask_circle = np.pad(mask_circle, ((padding[1], padding[3]), (padding[0], padding[2])), mode='constant')        
-            manual_mask = None
+            if mask_circle.shape != (target_size, target_size):
+                mask_circle = np.pad(
+                    mask_circle,
+                    ((padding[1], padding[3]), (padding[0], padding[2])),
+                    mode='constant'
+                )
             
             if roi_option == "Otomatis (Lingkaran)":
                 mask_circle = detect_circle_roi(image_np)
@@ -171,7 +176,7 @@ if uploaded_files:
                 )
         
                 if canvas_result.json_data and canvas_result.json_data["objects"]:
-                    manual_mask = np.zeros((target_size, target_size), dtype=np.uint8)
+                    manual_mask = np.zeros((new_h, new_w), dtype=np.uint8)
                     for obj in canvas_result.json_data["objects"]:
                         if "Kotak" in roi_option:
                             l, t = int(obj["left"]), int(obj["top"])
