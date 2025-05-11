@@ -127,21 +127,22 @@ if uploaded_files:
         mask_circle = np.zeros(gray.shape, dtype=np.uint8)
         cv2.circle(mask_circle, center, radius, 1, -1)
 
-    elif roi_option in ["Manual (Kotak)", "Manual (Poligon)"]:
+    elif roi_option in ["Manual (Kotak)", "Manual (Poligon)", "Manual (Lingkaran)"]:
         st.warning("Silakan gambar ROI pada kanvas di bawah ini")
+        mode = {"Manual (Kotak)": "rect", "Manual (Poligon)": "polygon", "Manual (Lingkaran)": "circle"}[roi_option]
         canvas_result = st_canvas(
             fill_color="rgba(255, 0, 0, 0.3)",
             stroke_width=2,
-            background_image=image_resized.copy(),
+            background_image=image_resized,
             update_streamlit=True,
             height=target_size,
             width=target_size,
-            drawing_mode="polygon" if roi_option == "Manual (Poligon)" else "rect",
+            drawing_mode=mode,
             key=f"canvas_{filename}_{roi_option.replace(' ', '_')}"
         )
-
-        if canvas_result and canvas_result.json_data and canvas_result.json_data["objects"]:
-            manual_mask = np.zeros((target_size, target_size), dtype=np.uint8)
+    
+        manual_mask = np.zeros((target_size, target_size), dtype=np.uint8)
+        if canvas_result.json_data and canvas_result.json_data["objects"]:
             for obj in canvas_result.json_data["objects"]:
                 if roi_option == "Manual (Kotak)":
                     left = int(obj["left"])
@@ -149,12 +150,17 @@ if uploaded_files:
                     width = int(obj["width"])
                     height = int(obj["height"])
                     manual_mask[top:top+height, left:left+width] = 1
+                elif roi_option == "Manual (Lingkaran)":
+                    left = int(obj["left"])
+                    top = int(obj["top"])
+                    rx = int(obj["width"] / 2)
+                    ry = int(obj["height"] / 2)
+                    center = (left + rx, top + ry)
+                    cv2.ellipse(manual_mask, center, (rx, ry), 0, 0, 360, 1, -1)
                 elif roi_option == "Manual (Poligon)":
-                    points = obj["path"]
-                    coords = [point for point in points if isinstance(point, list) and len(point) == 2]
-                    if len(coords) >= 3:
-                        # Format ke bentuk (N, 1, 2) untuk fillPoly
-                        poly = np.array([[int(p[0]), int(p[1])] for p in coords], dtype=np.int32).reshape((-1, 1, 2))
+                    path = obj.get("path")
+                    if isinstance(path, list) and all(isinstance(p, list) and len(p) == 2 for p in path):
+                        poly = np.array(path, dtype=np.int32).reshape((-1, 1, 2))
                         cv2.fillPoly(manual_mask, [poly], 1)
 
         if st.button("▶️ Proses"):
