@@ -160,6 +160,8 @@ if uploaded_files:
             
             if roi_option == "Otomatis (Lingkaran)":
                 mask_circle = detect_circle_roi(image_np)
+
+            manual_mask = None
         
             elif roi_option.startswith("Manual"):
                 st.warning("Silakan gambar ROI pada kanvas di bawah ini")
@@ -211,6 +213,8 @@ if uploaded_files:
                             )
                             
             if st.button(f"▶️ Proses {filename}", key=f"process_{filename}"):
+                if 'manual_mask' not in locals():
+                    st.warning("⚠️ ROI manual belum digambar.")
                 mask_to_use = manual_mask if manual_mask is not None else mask_circle
         
                 if mask_to_use.sum() == 0:
