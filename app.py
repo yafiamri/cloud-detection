@@ -107,6 +107,7 @@ if uploaded_files:
         cols[i].image(img, caption=f.name, width=180)
 
 if uploaded_files:
+    uploaded_file = uploaded_files[0]
     filename = uploaded_file.name
     image = Image.open(uploaded_file).convert("RGB")
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -124,25 +125,31 @@ if uploaded_files:
     mask_circle = np.ones((target_size, target_size), dtype=np.uint8)
     manual_mask = None
 
-    def detect_circle_roi(image_np, original_shape):
+    def detect_circle_roi(image_np):
         gray = cv2.cvtColor((image_np * 255).astype(np.uint8), cv2.COLOR_RGB2GRAY)
+        h, w = gray.shape
         blur = cv2.GaussianBlur(gray, (7, 7), 0)
         _, thresh = cv2.threshold(blur, 10, 255, cv2.THRESH_BINARY)
         contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
-            return np.ones(original_shape, dtype=np.uint8)
+            return np.ones((h, w), dtype=np.uint8)  # fallback ke semua area
+    
         largest = max(contours, key=cv2.contourArea)
         ((x, y), radius) = cv2.minEnclosingCircle(largest)
-        center, radius = (int(x), int(y)), int(radius)
-        mask = np.zeros_like(gray, dtype=np.uint8)
+        center = (int(x), int(y))
+        radius = int(radius)
+    
+        mask = np.zeros((h, w), dtype=np.uint8)
         cv2.circle(mask, center, radius, 1, -1)
+    
         coverage_ratio = (mask * (thresh > 0)).sum() / (np.pi * radius**2)
         if coverage_ratio > 0.85:
             return mask
-        return np.ones(original_shape, dtype=np.uint8)
+        else:
+            return np.ones((h, w), dtype=np.uint8)  # fallback ke semua area jika bentuk tidak lingkaran
     
     if roi_option == "Otomatis (Lingkaran)":
-        mask_circle = detect_circle_roi(image_np, (target_size, target_size))
+        mask_circle = detect_circle_roi(image_np)
 
     elif roi_option.startswith("Manual"):
         st.warning("Silakan gambar ROI pada kanvas di bawah ini")
@@ -165,7 +172,7 @@ if uploaded_files:
                     l, t = int(obj["left"]), int(obj["top"])
                     w, h = int(obj["width"]), int(obj["height"])
                     manual_mask[t:t+h, l:l+w] = 1
-                elif "Poligon" in roi_option:
+                if "Poligon" in roi_option:
                     for obj in canvas_result.json_data["objects"]:
                         if obj["type"] == "path" and obj.get("path"):
                             coords = []
@@ -176,7 +183,7 @@ if uploaded_files:
                             if len(coords) >= 3:
                                 poly = np.array(coords, dtype=np.int32).reshape((-1, 1, 2))
                                 cv2.fillPoly(manual_mask, [poly], 1)
-                elif "Lingkaran" in roi_option:
+                if "Lingkaran" in roi_option:
                     for obj in canvas_result.json_data["objects"]:
                         left = int(obj.get("left", 0))
                         top = int(obj.get("top", 0))
@@ -237,7 +244,7 @@ if uploaded_files:
         col3.image(overlay_img, caption="Overlay")
 
         st.markdown(f"""
-        ### 📄 Hasil Analisis: `{filename}`
+        ### 📄 Hasil Analisis: {filename}
         🕒 **Waktu Analisis:** {timestamp} WIB  
         ⛅ **Kondisi Langit:** {sky_condition}  
         ☁️ **Tutupan Awan:** {coverage:.2f}% (sekitar {oktaf} oktaf)  
