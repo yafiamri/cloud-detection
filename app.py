@@ -132,15 +132,21 @@ if uploaded_files:
         _, thresh = cv2.threshold(blur, 10, 255, cv2.THRESH_BINARY)
         contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
-            return np.ones((h, w), dtype=np.uint8)  # fallback
+            return np.ones((h, w), dtype=np.uint8)  # fallback ke semua area
+    
         largest = max(contours, key=cv2.contourArea)
         ((x, y), radius) = cv2.minEnclosingCircle(largest)
         center = (int(x), int(y))
         radius = int(radius)
+    
         mask = np.zeros((h, w), dtype=np.uint8)
         cv2.circle(mask, center, radius, 1, -1)
+    
         coverage_ratio = (mask * (thresh > 0)).sum() / (np.pi * radius**2)
-        return mask if coverage_ratio > 0.85 else np.ones((h, w), dtype=np.uint8)  # fallback
+        if coverage_ratio > 0.85:
+            return mask
+        else:
+            return np.ones((h, w), dtype=np.uint8)  # fallback ke semua area jika bentuk tidak lingkaran
     
     if roi_option == "Otomatis (Lingkaran)":
         mask_circle = detect_circle_roi(image_np)
@@ -166,20 +172,27 @@ if uploaded_files:
                     l, t = int(obj["left"]), int(obj["top"])
                     w, h = int(obj["width"]), int(obj["height"])
                     manual_mask[t:t+h, l:l+w] = 1
-                elif "Poligon" in roi_option:
-                    if obj.get("path"):
-                        poly = np.array([[int(p[0]), int(p[1])] for p in obj["path"] if isinstance(p, list) and len(p) == 2], dtype=np.int32)
-                        if poly.shape[0] >= 3:
-                            cv2.fillPoly(manual_mask, [poly.reshape((-1, 1, 2))], 1)
-                elif "Lingkaran" in roi_option:
-                    left = int(obj.get("left", 0))
-                    top = int(obj.get("top", 0))
-                    width = int(obj.get("width", 0))
-                    height = int(obj.get("height", 0))
-                    cx = left + width // 2
-                    cy = top + height // 2
-                    radius = min(width, height) // 2
-                    cv2.circle(manual_mask, (cx, cy), radius, 1, -1)
+                if "Poligon" in roi_option:
+                    for obj in canvas_result.json_data["objects"]:
+                        if obj["type"] == "path" and obj.get("path"):
+                            coords = []
+                            for item in obj["path"]:
+                                if isinstance(item, list) and len(item) >= 3:
+                                    x, y = item[1], item[2]
+                                    coords.append([int(x), int(y)])
+                            if len(coords) >= 3:
+                                poly = np.array(coords, dtype=np.int32).reshape((-1, 1, 2))
+                                cv2.fillPoly(manual_mask, [poly], 1)
+                if "Lingkaran" in roi_option:
+                    for obj in canvas_result.json_data["objects"]:
+                        left = int(obj.get("left", 0))
+                        top = int(obj.get("top", 0))
+                        width = int(obj.get("width", 0))
+                        height = int(obj.get("height", 0))
+                        cx = left + width // 2
+                        cy = top + height // 2
+                        radius = min(width, height) // 2
+                        cv2.circle(manual_mask, (cx, cy), radius, 1, -1)
                     
     if st.button("▶️ Proses"):
         mask_to_use = manual_mask if manual_mask is not None else mask_circle
