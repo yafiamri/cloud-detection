@@ -142,7 +142,7 @@ if uploaded_files:
         return np.ones(original_shape, dtype=np.uint8)
     
     if roi_option == "Otomatis (Lingkaran)":
-        mask_circle = detect_circle_roi(image_np)
+        mask_circle = detect_circle_roi(image_np, (target_size, target_size))
 
     elif roi_option.startswith("Manual"):
         st.warning("Silakan gambar ROI pada kanvas di bawah ini")
@@ -192,7 +192,7 @@ if uploaded_files:
 
         if mask_to_use.sum() == 0:
             st.error("ROI tidak terdeteksi dengan benar. Silakan periksa kembali gambar atau metode ROI yang digunakan.")
-            st.stop()
+            continue
 
         input_tensor = torch.from_numpy(image_np.transpose(2, 0, 1)).float().unsqueeze(0)
         with torch.no_grad():
