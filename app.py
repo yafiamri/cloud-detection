@@ -149,20 +149,18 @@ if uploaded_files:
             padding = (delta_w // 2, delta_h // 2, delta_w - delta_w // 2, delta_h - delta_h // 2)
             image_resized = ImageOps.expand(resized_no_pad, padding, fill=(0, 0, 0))
             image_np = np.array(image_resized) / 255.0
-            
-            mask_circle = detect_circle_roi(image_np_raw)
-            if mask_circle.shape != (target_size, target_size):
-                mask_circle = np.pad(
-                    mask_circle,
-                    ((padding[1], padding[3]), (padding[0], padding[2])),
-                    mode='constant'
-                )
-            
-            if roi_option == "Otomatis (Lingkaran)":
-                mask_circle = detect_circle_roi(image_np)
 
             manual_mask = None
-        
+
+            if roi_option == "Otomatis (Lingkaran)":
+                mask_circle = detect_circle_roi(image_np_raw)
+                if mask_circle.shape != (target_size, target_size):
+                    mask_circle = np.pad(
+                        mask_circle,
+                        ((padding[1], padding[3]), (padding[0], padding[2])),
+                        mode='constant'
+                    )
+            
             elif roi_option.startswith("Manual"):
                 st.warning("Silakan gambar ROI pada kanvas di bawah ini")
                 mode = "rect" if "Kotak" in roi_option else "polygon" if "Poligon" in roi_option else "circle"
@@ -213,10 +211,8 @@ if uploaded_files:
                             )
                             
             if st.button(f"▶️ Proses {filename}", key=f"process_{filename}"):
-                if 'manual_mask' not in locals():
-                    st.warning("⚠️ ROI manual belum digambar.")
                 mask_to_use = manual_mask if manual_mask is not None else mask_circle
-        
+            
                 if mask_to_use.sum() == 0:
                     st.error("ROI tidak terdeteksi dengan benar. Silakan periksa kembali gambar atau metode ROI yang digunakan.")
                     st.stop()
