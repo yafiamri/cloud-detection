@@ -192,7 +192,7 @@ if uploaded_files:
 
         if mask_to_use.sum() == 0:
             st.error("ROI tidak terdeteksi dengan benar. Silakan periksa kembali gambar atau metode ROI yang digunakan.")
-            continue
+            st.stop()
 
         input_tensor = torch.from_numpy(image_np.transpose(2, 0, 1)).float().unsqueeze(0)
         with torch.no_grad():
