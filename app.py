@@ -200,7 +200,7 @@ if uploaded_files:
                                 cv2.circle(manual_mask, (cx, cy), radius, 1, -1)
                     manual_mask = np.pad(manual_mask, ((padding[1], padding[3]), (padding[0], padding[2])), mode='constant')
                             
-            if st.button(f"▶️ Proses {filename}", key=f"process_{filename}")::
+            if st.button(f"▶️ Proses {filename}", key=f"process_{filename}"):
                 mask_to_use = manual_mask if manual_mask is not None else mask_circle
         
                 if mask_to_use.sum() == 0:
