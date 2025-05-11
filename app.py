@@ -180,13 +180,13 @@ if uploaded_files:
                     cy = top + height // 2
                     radius = min(width, height) // 2
                     cv2.circle(manual_mask, (cx, cy), radius, 1, -1)
-
-    if mask_to_use.sum() == 0:
-    st.error("ROI tidak terdeteksi dengan benar. Silakan periksa kembali gambar atau metode ROI yang digunakan.")
-    st.stop()
                     
     if st.button("▶️ Proses"):
         mask_to_use = manual_mask if manual_mask is not None else mask_circle
+
+        if mask_to_use.sum() == 0:
+        st.error("ROI tidak terdeteksi dengan benar. Silakan periksa kembali gambar atau metode ROI yang digunakan.")
+        st.stop()
 
         input_tensor = torch.from_numpy(image_np.transpose(2, 0, 1)).float().unsqueeze(0)
         with torch.no_grad():
