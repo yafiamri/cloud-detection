@@ -154,8 +154,9 @@ if uploaded_files:
                         poly = np.array([[int(p[0]), int(p[1])] for p in coords], dtype=np.int32).reshape((-1, 1, 2))
                         cv2.fillPoly(manual_mask, [poly], 1)
                 elif "Lingkaran" in roi_option:
-                    cx, cy = int(obj["left"] + obj["radius"]), int(obj["top"] + obj["radius"])
-                    radius = int(obj["radius"])
+                    cx = int(obj.get("left", 0) + obj.get("width", 0) / 2)
+                    cy = int(obj.get("top", 0) + obj.get("height", 0) / 2)
+                    radius = int(obj.get("width", 0) / 2)
                     cv2.circle(manual_mask, (cx, cy), radius, 1, -1)
                     
     if st.button("▶️ Proses"):
