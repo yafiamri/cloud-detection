@@ -1,4 +1,6 @@
 # utils/classification.py
+import os
+import gdown
 from ultralytics import YOLO
 
 class_names = [
@@ -12,6 +14,11 @@ class_names = [
 ]
 
 def load_classification_model(weight_path="models/yolov8.pt"):
+    drive_id = "1qG1nvsCBPxOPtiE2Po8yDS521SjfZisI"
+    if not os.path.exists(weight_path):
+        os.makedirs(os.path.dirname(weight_path), exist_ok=True)
+        url = f"https://drive.google.com/uc?id={drive_id}"
+        gdown.download(url, weight_path, quiet=False)
     return YOLO(weight_path)
 
 def predict_classification(model, image_path, top_k=3):
