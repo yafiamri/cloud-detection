@@ -4,7 +4,7 @@ protobuf==5.27.4
 torch
 ultralytics
 opencv-python
-Pillow
+Pillow==9.5.0
 plotly
 numpy
 pandas
