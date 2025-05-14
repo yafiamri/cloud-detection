@@ -2,9 +2,16 @@
 import torch
 import numpy as np
 import cv2
+import os
+import gdown
 from models.clouddeeplabv3_architecture import CloudDeepLabV3Plus
 
 def load_segmentation_model(weight_path="models/clouddeeplabv3.pth"):
+    drive_id = "14uQx6dGlV8iCJdQqhWZ6KczfQa7XuaEA"
+    if not os.path.exists(weight_path):
+        os.makedirs(os.path.dirname(weight_path), exist_ok=True)
+        url = f"https://drive.google.com/uc?id={drive_id}"
+        gdown.download(url, weight_path, quiet=False)
     model = CloudDeepLabV3Plus()
     model.load_state_dict(torch.load(weight_path, map_location="cpu"))
     model.eval()
