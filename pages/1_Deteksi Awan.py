@@ -139,7 +139,9 @@ if uploaded_files:
                 except:
                     font = ImageFont.load_default()
                 
-                text_width, text_height = draw.textsize(text, font=font)
+                bbox = draw.textbbox((0, 0), text, font=font)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
                 x = overlay_img.width - text_width - margin
                 y = overlay_img.height - text_height - margin
                 
