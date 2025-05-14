@@ -5,6 +5,7 @@ torch
 ultralytics
 opencv-python
 Pillow
+plotly
 numpy
 pandas
 fpdf
