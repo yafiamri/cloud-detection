@@ -1,5 +1,5 @@
 streamlit==1.37.0
-streamlit-drawable-canvas==0.9.4
+streamlit-drawable-canvas==0.9.3
 protobuf==5.27.4
 torch
 ultralytics
