@@ -1,5 +1,5 @@
 streamlit==1.40.0
-streamlit-drawable-canvas==0.9.3
+streamlit-drawable-canvas==0.9.0
 protobuf==5.27.4
 torch
 ultralytics
@@ -8,6 +8,8 @@ Pillow
 plotly
 numpy
 pandas
+seaborn
+matplotlib
 fpdf
 timm
 gdown
